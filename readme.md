@@ -15,7 +15,7 @@ computationally-limited modeling tool. case, a surrogate for a numerical model.
   <img src="https://github.com/YulKeal/AI-Rolling-Wave-Height-Model/blob/main/figure/figure2.jpg" alt="" width="600"/>
 </p>
 
-Additionally in the rolling forecasting process, we integrate a data assimilation approach that aims to improve the forecast accuracy by integrating the observed data into the simulation process.
+Additionally in the rolling forecasting process, we integrate a data assimilation approach that aims to improve the forecast accuracy by integrating the observed data into the forecast process.
 Conventional models usually rely on static initial conditions, which leads to an increase in error over time. This rolling model addresses this limitation by continuously correcting the model 
 predictions based on real-time or periodic assimilation data. The implementation shows that the introduction of the assimilated rolling model not only improves the results dramatically, 
 but also converges faster and reaches the steady state quickly.
