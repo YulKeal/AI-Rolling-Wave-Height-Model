@@ -8,7 +8,7 @@ A global-scale SWH roll forecasting model based on data assimilation techniques 
 ## Introduction
 The global-scale SWH roll model is a simple but efficient predictive modeling framework that can accurately predict the SWH of the hour after the hour by inputting the SWH 
 of the previous hour and the wind of the hour after the hour after the hour after the hour. as long as the wind field is required for the whole year, the model is able to quickly 
-complete the modeling of SWH for the whole year, and the prediction is basically comparable to the effect of the state-of-the-art numerical models, which can be used as a time- or 
+complete the modeling of SWH for the whole year, and the forecast error is not significantly larger than state-of-the-art numerical wave models, which can be used as a time- or 
 computationally-limited modeling tool. case, a surrogate for a numerical model.
 
 Additionally in the rolling forecasting process, we integrate a data assimilation approach that aims to improve the forecast accuracy by integrating the observed data into the simulation process.
