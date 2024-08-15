@@ -34,7 +34,7 @@ but also converges faster and reaches the steady state quickly.
 ## Results
 From 2020-01-01 00:00 as the initial field, even without using data assimilation, rolling predictions for a full year of the 2020 test set works very well, and it is hard to tell the difference with the naked eye compared to ERA5
 <p align="left">
-  <img src="https://github.com/YulKeal/AI-Wave-Height-Model/blob/main/figure/Movies-S1.gif" alt="Global" width="500"/>
+  <img src="https://github.com/YulKeal/AI-Rolling-Wave-Height-Model/blob/main/figure/Movies-S1.gif" alt="Global" width="500"/>
 </p>
 
 
