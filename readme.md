@@ -34,8 +34,9 @@ but also converges faster and reaches the steady state quickly.
 ## Results
 From 2020-01-01 00:00 as the initial field, even without using data assimilation, rolling predictions for a full year of the 2020 test set works very well, and it is hard to tell the difference with the naked eye compared to ERA5
 <p align="left">
-  <img src="https://github.com/YulKeal/AI-Rolling-Wave-Height-Model/blob/main/figure/figure1.jpg" alt="Global" width="600"/>
+  <img src="https://github.com/YulKeal/AI-Wave-Height-Model/blob/main/figure/Movies-S1.gif" alt="Global" width="500"/>
 </p>
+
 
 ## How to Use
 You can directly use the rolling_model.py file and call either NetTrain() for network training or NetInference() for inference. In the NetInference() function, you can modify the forecast_steps and Enable_Assi parameters in the continuous_inference function to choose the number of rolling forecast steps or whether to enable assimilation. The model weight files and 2020 CCI altimeter data (used for assimilation) are provided in Google Drive. The ERA5 2020 test set data we use is quite large, and you can download it yourself via API using the download_era5.py script (please refer to the official website for API key configuration). The assimilation.py file defines the implementation of the assimilation functionality.Additionally, mask_land.npz is a mask used to exclude land and ice regions.
