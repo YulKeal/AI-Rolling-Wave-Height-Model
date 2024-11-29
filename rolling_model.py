@@ -13,12 +13,12 @@ from collections import deque
 import matplotlib.pyplot as plt
 from torch.optim.lr_scheduler import StepLR
 import torch.nn.functional as F
-
+from torch.utils.data import Subset
 import assimilation as assi
 
 def data_preprocess(dataset_name="2022"):
     # Load the specified ERA5 dataset
-    data = xr.open_dataset('E:/Era5-Global-0.5/' + dataset_name + '.nc')
+    data = xr.open_dataset('./data/ERA5/' + dataset_name + '.nc')
 
     # Extract longitude and latitude data
     lon = data['longitude'].data[::]
@@ -507,9 +507,125 @@ def forecast_curver(forecast_steps, RMSE, CC):
     plt.show()
 
 
+
+def get_data_subset(dataloader, start_idx, length):
+    """
+    Extracts data from a specified start position and length
+    """
+    indices = list(range(start_idx, start_idx + length))
+    subset = Subset(dataloader.dataset, indices)
+    return DataLoader(subset, batch_size=dataloader.batch_size, shuffle=False)
+
+
+def continuous_inference_different_startpoint(models, test_dataloader,Enable_Assi=True):
+
+
+    cci_data = np.load("./data/CCI/CCI2020.npz")
+    cci_swhlist = cci_data["swh"]
+    cci_lonlist = cci_data["lonlist"]
+    cci_latlist = cci_data["latlist"]
+    cci_timelist = cci_data["timelist"]
+
+    total_time = len(test_dataloader)
+    interval = 36
+    run_length = 300
+    num_runs = total_time // interval
+
+
+    save_path =  './data/diffstartfield_data/'
+    if not os.path.exists(save_path):
+        os.makedirs(save_path)
+        print(f"Directory '{save_path}' created.")
+
+
+    loaded = np.load('mask_land.npz')
+    mask = loaded['mask']
+    mask = np.logical_not(mask)
+    mask = mask[:, :]
+
+    mask = torch.tensor(mask).to(device)
+    extend_edge = 20
+    out_expend = torch.empty((1, lat_wind, lon_wind + extend_edge * 2)).to(device)
+
+
+    pbar=tqdm(range(0,num_runs))
+    for run in pbar:
+        start_idx = run * interval
+        if start_idx + run_length > total_time:
+            break
+
+        rmse_figure_data = np.zeros([2,  run_length, lat, lon], dtype=np.float16)
+
+        hour = 0
+
+        model_predict = deque(maxlen=48)
+        model_label = deque(maxlen=48)
+
+        # Get the subset of data starting from the specified position
+        test_sub_dataloader=get_data_subset(test_dataloader,start_idx,run_length)
+
+        with torch.no_grad():
+            for test_data, target in test_sub_dataloader:
+                batch_predictions = torch.zeros([lat, lon]).to(device)
+                test_data, target = test_data.to(device), target.to(device)
+
+                if hour == 0:
+                    for index, model in enumerate(models):
+                        out = model(test_data)
+                        batch_predictions = batch_predictions + out
+                else:
+                    out_expend[:, :, extend_edge:-extend_edge] = out
+                    out_expend[:, :, 0:extend_edge] = out[:, :, -extend_edge:]
+                    out_expend[:, :, -extend_edge:] = out[:, :, :extend_edge]
+                    out = out_expend
+                    test_data[:, 2, :, :] = out
+                    for index, model in enumerate(models):
+                        batch_predictions = batch_predictions + model(test_data)
+
+                out = torch.unsqueeze(batch_predictions / len(models), 0)
+
+                out = torch.masked_fill(out, mask, 0)
+                target = torch.masked_fill(target, mask, 0)
+
+                out[out < 0] = 0
+
+                labels = target
+
+                rmse_figure_data[0, hour, :, :] = np.reshape(out.detach().cpu().numpy(), [lat, lon])  # predict:0
+                rmse_figure_data[1, hour, :, :] = np.reshape(labels.detach().cpu().numpy(), [lat, lon])
+
+                loss = np.sqrt(np.mean(np.square(rmse_figure_data[0, hour, :, :] - rmse_figure_data[1, hour, :, :])))
+
+
+                model_predict.append(out.squeeze().cpu().numpy())
+                model_label.append(labels.squeeze().cpu().numpy())
+
+                if (hour > 20 and hour % 6 == 0 and Enable_Assi):
+
+
+                    Fcref = assi.oa_assimilation_multi_thread(cci_swhlist, cci_latlist, cci_lonlist, cci_timelist,
+                                                             np.array(model_predict),
+                                                             start_idx+hour + 1, window_size=30)
+
+
+                    pbar.set_postfix({'Forecast Time':hour,'RMSE': assi.rmse(model_predict[-1], model_label[-1]),
+                                      'Assi RMSE': assi.rmse(Fcref, model_label[-1])})
+
+                    out = torch.unsqueeze(torch.tensor(Fcref), 0).to(device)
+
+                hour += 1
+
+
+
+        np.savez(f'{save_path}field_{start_idx}.npz', model_data=rmse_figure_data[0,:,:,:],label_data=rmse_figure_data[1,:,:,:])
+
+
+
+
+
 def continuous_inference(models, test_dataloader,forecast_steps=0,Enable_Assi=True):
 
-    cci_data = np.load(".\CCI2020.npz")
+    cci_data = np.load(".\data\CCI\CCI2020.npz")
     cci_swhlist = cci_data["swh"]
     cci_lonlist = cci_data["lonlist"]
     cci_latlist = cci_data["latlist"]
@@ -610,7 +726,7 @@ def continuous_inference(models, test_dataloader,forecast_steps=0,Enable_Assi=Tr
 
                 Fcref = assi.oa_assimilation_multi_thread(cci_swhlist, cci_latlist, cci_lonlist, cci_timelist, np.array(model_predict),
                                                           hour + 1, window_size=30)
-                print(assi.rmse(model_predict[-1], model_label[-1]), '^', assi.rmse(Fcref, model_label[-1]))
+                print(assi.rmse(model_predict[-1], model_label[-1]))
 
                 out = torch.unsqueeze(torch.tensor(Fcref), 0).to(device)
 
@@ -662,15 +778,29 @@ def NetInference():
         dataset = DynamicDataset(wind_u, wind_v, wave_height)
         dataloader = DataLoader(dataset, batch_size=1, shuffle=False, drop_last=False)
 
+        # Enable_Assi is True to use assimilation, False to not use assimilation.
 
 
-        model_data = continuous_inference(models_list, dataloader,forecast_steps=2000,Enable_Assi=True)
-
+        # This function allows you to quickly test the performance of the rolling model and output the forecast error
+        # curves. forecast_steps determines the step size of the first data in the dataset to be used as the initial
+        # field prediction.
+        model_data = continuous_inference(models_list, dataloader,forecast_steps=3000,Enable_Assi=False)
         print("save")
-        np.savez( 'model_data.npz',
+        np.savez( './data/model_data.npz',
                  model_data=model_data,
                  axis_lat=axis_lat,
                  axis_lon=axis_lon)
+
+
+
+        # This function is the experimental approach in the paper, where different initial fields are chosen for the
+        # experiments, which ultimately generates 236 .npz files, each of which holds the model outputs and labels
+        # (ERA5 SWH) for 300 consecutive forecast steps under that initial field.
+        # The results of the curves in the paper are obtained by averaging the forecast curves for these different
+        # initial fields
+
+        #continuous_inference_different_startpoint(models_list, dataloader, Enable_Assi=False)
+
 
 
 
@@ -691,3 +821,4 @@ comment= "rolling_model"
 
 #NetTrain()
 NetInference()
+
